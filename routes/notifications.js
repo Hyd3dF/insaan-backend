@@ -40,12 +40,31 @@ router.post('/send', async (req, res) => {
         try {
             // Fetch users who have a push_token and notifications enabled
             // We'll fetch all and filter or use a specific filter if PB supports checking for non-empty
-            const users = await pb.collection('users').getFullList({
-                filter: 'push_token != "" && is_notification_active = true'
-            });
+            // Fetch all users to avoid 400 Bad Request on filter mismatch, then filter in memory
+            const users = await pb.collection('users').getFullList();
 
-            pushTokens = users.map(u => u.push_token).filter(t => t);
-            console.log(`Found ${pushTokens.length} active recipients.`);
+            if (users.length > 0) {
+                console.log("DEBUG: User Schema Keys:", Object.keys(users[0]));
+                console.log("DEBUG: Sample User Data:", JSON.stringify({
+                    push_token: users[0].push_token,
+                    pushToken: users[0].pushToken,
+                    is_notification_active: users[0].is_notification_active
+                }));
+            }
+
+            pushTokens = users
+                .filter(u => {
+                    // Try both snake_case and camelCase to be safe
+                    const token = u.push_token || u.pushToken;
+                    // Check for notification active flag (handle true/false/undefined)
+                    // If field is missing, default to false
+                    const isActive = u.is_notification_active === true || u.is_notification_active === 'true';
+
+                    return token && token.length > 0 && isActive;
+                })
+                .map(u => u.push_token || u.pushToken);
+
+            console.log(`Found ${pushTokens.length} active recipients (filtered from ${users.length} total users).`);
 
         } catch (userError) {
             console.error('Failed to fetch users:', userError);

@@ -48,8 +48,12 @@ router.post('/send', async (req, res) => {
             console.log(`Found ${pushTokens.length} active recipients.`);
 
         } catch (userError) {
-            console.error('Failed to fetch users:', userError.message);
-            return res.status(500).json({ error: 'Failed to retrieve recipients' });
+            console.error('Failed to fetch users:', userError);
+            return res.status(500).json({
+                error: 'Failed to retrieve recipients',
+                details: userError.message,
+                data: userError.response?.data
+            });
         }
 
         if (pushTokens.length === 0) {
